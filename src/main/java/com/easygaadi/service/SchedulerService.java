@@ -73,7 +73,7 @@ public class SchedulerService {
         Calendar calendar = Calendar.getInstance();
         calendar.set(Calendar.MINUTE, calendar.get(Calendar.MINUTE) - 2);
         Date end = calendar.getTime();
-        calendar.set(Calendar.MINUTE, calendar.get(Calendar.MINUTE) - 30);
+        calendar.set(Calendar.MINUTE, calendar.get(Calendar.MINUTE) - 600);
         Date start = calendar.getTime();
         logger.info("looking for device positions start:{} end:{}", start, end);
         List<Account> accounts = accountRepository.findByRouteConfigEnabled(true);
