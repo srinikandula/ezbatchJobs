@@ -2,3 +2,4 @@
 target
 .idea
 .DS_Store
+/src/main/java/com/easygaadi/service/SchedulerService.java
