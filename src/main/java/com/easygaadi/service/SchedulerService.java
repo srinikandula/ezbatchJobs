@@ -62,7 +62,11 @@ public class SchedulerService {
         List<DevicePosition> devicePositions = mongoTemplate.find(q, DevicePosition.class);
         logger.info("archiving devicePositions before {}, count {}", calendar.getTime(), devicePositions.size());
         devicePositions.stream().forEach( devicePosition -> {
-            archivedDevicePositionRepository.save(new ArchivedDevicePosition(devicePosition));
+            try {
+                archivedDevicePositionRepository.save(new ArchivedDevicePosition(devicePosition));
+            }catch (Exception e) {
+                logger.error("error archiving device positions");
+            }
         });
         devicePositionRepository.deleteAll(devicePositions);
     }
