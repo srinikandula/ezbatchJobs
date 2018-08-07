@@ -41,7 +41,10 @@ import java.util.Map;
 @Setter
 @Document(collection = "archivedDevicePositions")
 public class ArchivedDevicePosition extends DevicePosition {
+    private String devicePositionId;
     public ArchivedDevicePosition(DevicePosition devicePosition){
+        this.devicePositionId = devicePosition.getId();
         BeanUtils.copyProperties(devicePosition, this);
+        this.setId(null);
     }
 }
