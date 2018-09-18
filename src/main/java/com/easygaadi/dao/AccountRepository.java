@@ -6,5 +6,5 @@ import java.util.List;
 
 public interface AccountRepository extends CrudRepository<Account, String> {
 
-    List<Account> findByRouteConfigEnabled(boolean status);
+    List<Account> findByRouteConfigEnabled(boolean routeConfigEnabled);
 }

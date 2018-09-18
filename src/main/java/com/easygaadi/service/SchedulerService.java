@@ -16,6 +16,7 @@ import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.NearQuery;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -51,7 +52,7 @@ public class SchedulerService {
     @Autowired
     private TruckRepository truckRepository;
 
-    @Scheduled(cron = "0 */2 * * * *")
+    //@Scheduled(cron = "0 */2 * * * *")
     //@Scheduled(fixedDelay = 5000)
     public void archiveDevicePositions() {
         Calendar calendar = Calendar.getInstance();
@@ -67,7 +68,7 @@ public class SchedulerService {
         devicePositionRepository.deleteAll(devicePositions);
     }
 
-    @Scheduled(cron = "0 */30 * * * *")
+    //@Scheduled(cron = "0 */30 * * * *")
     //@Scheduled(fixedDelay = 10000)
     public void updateGeofenceReport() {
         Calendar calendar = Calendar.getInstance();
@@ -134,6 +135,58 @@ public class SchedulerService {
                 }
             }
         });
+    }
 
+    /**
+     * This is for HUL
+     */
+    //@Scheduled(cron = "0 */30 * * * *")
+    @Scheduled(fixedDelay = 1800000) // 30 minutes
+    public void syncGeofenceReports() {
+        List<Account> accounts = accountRepository.findByRouteConfigEnabled(true);
+        accounts.stream().forEach(account -> {
+            List<GeoFenceReport> geoFenceReports = geoFenceReportRepository.findByAccountId(account.getId());
+            geoFenceReports.parallelStream().forEach(geoFenceReport -> {
+                if (geoFenceReport.getEndTime() == null) {
+                    GeoFence geoFence = geoFenceRepository.findOneByAccountIdAndName(account.getId(), geoFenceReport.getDepot());
+                    double raidus = 0.1;
+                    //convert meters to kilometers
+                    if (geoFence.getRadius() != 0) {
+                        raidus = geoFence.getRadius() / 100;
+                    }
+                    List<Criteria> match = new ArrayList<>();
+                    Criteria criteria = new Criteria();
+                    List<Double> coordinates = (List<Double>) geoFence.getGeoLocation().get("coordinates");
+                    if (coordinates.size() == 2) {
+                        Point point = new Point(coordinates.get(1), coordinates.get(0));
+                        logger.info("searching for GPS location with in range {} and {}", point.getX(), point.getY());
+                        match.add(Criteria.where("accountId").is(account.getId()));
+                        match.add(Criteria.where("createdAt").gte(geoFenceReport.getStartTime()));
+                        match.add(Criteria.where("uniqueId").is(geoFenceReport.getDeviceId()));
+                        NearQuery nearQuery = NearQuery.near(point).maxDistance(new Distance(raidus, Metrics.KILOMETERS));
+                        criteria.andOperator(match.toArray(new Criteria[match.size()]));
+                        Aggregation agg = newAggregation(
+                                geoNear(nearQuery, "distance"),
+                                match(criteria),
+                                group("uniqueId").max("createdAt")
+                                        .as("endTime").min("createdAt").as("startTime"));
+
+                        AggregationResults<Document> groupResults
+                                = mongoTemplate.aggregate(agg, DevicePosition.class, Document.class);
+                        List<Document> results = groupResults.getMappedResults();
+                        if(results != null && results.size()>0){
+                            Document result = results.get(0);
+                            Query query = new Query();
+                            query.addCriteria(Criteria.where("_id").is(geoFenceReport.getId()));
+                            Update update = new Update();
+                            update.set("endTime", result.getDate("endTime"));
+                            mongoTemplate.updateMulti(query, update, GeoFenceReport.class);
+                            logger.info("Truck {} arrived at {} at {}", geoFenceReport.getRegistrationNo(),
+                                    geoFenceReport.getDepot(), result.get("endTime"));
+                        }
+                    }
+                }
+            });
+        });
     }
 }
