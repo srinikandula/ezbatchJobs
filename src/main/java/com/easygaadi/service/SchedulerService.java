@@ -148,41 +148,43 @@ public class SchedulerService {
             List<GeoFenceReport> geoFenceReports = geoFenceReportRepository.findByAccountId(account.getId());
             geoFenceReports.parallelStream().forEach(geoFenceReport -> {
                 if (geoFenceReport.getEndTime() == null) {
-                    GeoFence geoFence = geoFenceRepository.findOneByAccountIdAndName(account.getId(), geoFenceReport.getDepot());
-                    double raidus = 0.1;
-                    //convert meters to kilometers
-                    if (geoFence.getRadius() != 0) {
-                        raidus = geoFence.getRadius() / 100;
-                    }
-                    List<Criteria> match = new ArrayList<>();
-                    Criteria criteria = new Criteria();
-                    List<Double> coordinates = (List<Double>) geoFence.getGeoLocation().get("coordinates");
-                    if (coordinates.size() == 2) {
-                        Point point = new Point(coordinates.get(1), coordinates.get(0));
-                        logger.info("searching for GPS location with in range {} and {}", point.getX(), point.getY());
-                        match.add(Criteria.where("accountId").is(account.getId()));
-                        match.add(Criteria.where("createdAt").gte(geoFenceReport.getStartTime()));
-                        match.add(Criteria.where("uniqueId").is(geoFenceReport.getDeviceId()));
-                        NearQuery nearQuery = NearQuery.near(point).maxDistance(new Distance(raidus, Metrics.KILOMETERS));
-                        criteria.andOperator(match.toArray(new Criteria[match.size()]));
-                        Aggregation agg = newAggregation(
-                                geoNear(nearQuery, "distance"),
-                                match(criteria),
-                                group("uniqueId").max("createdAt")
-                                        .as("endTime").min("createdAt").as("startTime"));
+                    List<GeoFence> geoFences = geoFenceRepository.findByAccountIdAndName(account.getId(), geoFenceReport.getDepot());
+                    for(GeoFence geoFence: geoFences){
+                        double raidus = 0.1;
+                        //convert meters to kilometers
+                        if (geoFence.getRadius() != 0) {
+                            raidus = geoFence.getRadius() / 100;
+                        }
+                        List<Criteria> match = new ArrayList<>();
+                        Criteria criteria = new Criteria();
+                        List<Double> coordinates = (List<Double>) geoFence.getGeoLocation().get("coordinates");
+                        if (coordinates.size() == 2) {
+                            Point point = new Point(coordinates.get(1), coordinates.get(0));
+                            logger.info("searching for GPS location with in range {} and {}", point.getX(), point.getY());
+                            match.add(Criteria.where("accountId").is(account.getId()));
+                            match.add(Criteria.where("createdAt").gte(geoFenceReport.getStartTime()));
+                            match.add(Criteria.where("uniqueId").is(geoFenceReport.getDeviceId()));
+                            NearQuery nearQuery = NearQuery.near(point).maxDistance(new Distance(raidus, Metrics.KILOMETERS));
+                            criteria.andOperator(match.toArray(new Criteria[match.size()]));
+                            Aggregation agg = newAggregation(
+                                    geoNear(nearQuery, "distance"),
+                                    match(criteria),
+                                    group("uniqueId").max("createdAt")
+                                            .as("endTime").min("createdAt").as("startTime"));
 
-                        AggregationResults<Document> groupResults
-                                = mongoTemplate.aggregate(agg, DevicePosition.class, Document.class);
-                        List<Document> results = groupResults.getMappedResults();
-                        if(results != null && results.size()>0){
-                            Document result = results.get(0);
-                            Query query = new Query();
-                            query.addCriteria(Criteria.where("_id").is(geoFenceReport.getId()));
-                            Update update = new Update();
-                            update.set("endTime", result.getDate("endTime"));
-                            mongoTemplate.updateMulti(query, update, GeoFenceReport.class);
-                            logger.info("Truck {} arrived at {} at {}", geoFenceReport.getRegistrationNo(),
-                                    geoFenceReport.getDepot(), result.get("endTime"));
+                            AggregationResults<Document> groupResults
+                                    = mongoTemplate.aggregate(agg, DevicePosition.class, Document.class);
+                            List<Document> results = groupResults.getMappedResults();
+                            if(results != null && results.size()>0){
+                                Document result = results.get(0);
+                                Query query = new Query();
+                                query.addCriteria(Criteria.where("_id").is(geoFenceReport.getId()));
+                                Update update = new Update();
+                                update.set("endTime", result.getDate("endTime"));
+                                mongoTemplate.updateMulti(query, update, GeoFenceReport.class);
+                                logger.info("Truck {} arrived at {} at {}", geoFenceReport.getRegistrationNo(),
+                                        geoFenceReport.getDepot(), result.get("endTime"));
+                            }
                         }
                     }
                 }
