@@ -8,5 +8,5 @@ import java.util.List;
 @Repository
 public interface GeoFenceRepository extends CrudRepository<GeoFence, String> {
     List<GeoFence> findByAccountId(String accountId);
-    GeoFence findOneByAccountIdAndName(String accountId, String name);
+    List<GeoFence> findByAccountIdAndName(String accountId, String name);
 }
