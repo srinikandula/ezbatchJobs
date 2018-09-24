@@ -54,6 +54,7 @@ public class SchedulerService {
 
     //@Scheduled(cron = "0 */2 * * * *")
     //@Scheduled(fixedDelay = 5000)
+    @Scheduled(fixedDelay = 1800000)
     public void archiveDevicePositions() {
         Calendar calendar = Calendar.getInstance();
         calendar.set(Calendar.DATE, calendar.get(Calendar.DATE) - archiveLimitDays);
